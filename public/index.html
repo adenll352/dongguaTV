@@ -5099,20 +5099,85 @@
                             });
                         }
 
-                        // 📱 全屏事件监听（只做最小化处理，不干扰 DPlayer 原生行为）
-                        dp.on('fullscreen', () => {
+                        // 📱 全屏事件监听 - 使用 Capacitor 插件处理旋转和状态栏
+                        const handleEnterFullscreen = async () => {
                             console.log('[DPlayer] 进入全屏');
-                            // 只隐藏导航栏
+
+                            // 1. 隐藏导航栏
                             const navbar = document.querySelector('.navbar-custom');
                             if (navbar) navbar.style.display = 'none';
-                        });
 
-                        dp.on('fullscreen_cancel', () => {
+                            // 2. 使用 Capacitor 插件
+                            if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+                                try {
+                                    // 隐藏状态栏
+                                    const { StatusBar } = window.Capacitor.Plugins;
+                                    if (StatusBar) {
+                                        await StatusBar.hide();
+                                        console.log('[Fullscreen] 状态栏已隐藏');
+                                    }
+                                } catch (e) { console.warn('StatusBar error:', e); }
+
+                                try {
+                                    // 锁定横屏
+                                    const { ScreenOrientation } = window.Capacitor.Plugins;
+                                    if (ScreenOrientation) {
+                                        await ScreenOrientation.lock({ orientation: 'landscape' });
+                                        console.log('[Fullscreen] 已锁定横屏');
+                                    }
+                                } catch (e) { console.warn('ScreenOrientation error:', e); }
+                            }
+
+                            // 3. Web API fallback
+                            try {
+                                if (screen.orientation && screen.orientation.lock) {
+                                    await screen.orientation.lock('landscape').catch(() => { });
+                                }
+                            } catch (e) { }
+                        };
+
+                        const handleExitFullscreen = async () => {
                             console.log('[DPlayer] 退出全屏');
-                            // 恢复导航栏
+
+                            // 1. 恢复导航栏
                             const navbar = document.querySelector('.navbar-custom');
                             if (navbar) navbar.style.display = '';
-                        });
+
+                            // 2. 使用 Capacitor 插件
+                            if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+                                try {
+                                    // 显示状态栏
+                                    const { StatusBar } = window.Capacitor.Plugins;
+                                    if (StatusBar) {
+                                        await StatusBar.show();
+                                        console.log('[Fullscreen] 状态栏已恢复');
+                                    }
+                                } catch (e) { console.warn('StatusBar error:', e); }
+
+                                try {
+                                    // 解锁屏幕方向
+                                    const { ScreenOrientation } = window.Capacitor.Plugins;
+                                    if (ScreenOrientation) {
+                                        await ScreenOrientation.unlock();
+                                        console.log('[Fullscreen] 屏幕方向已解锁');
+                                    }
+                                } catch (e) { console.warn('ScreenOrientation error:', e); }
+                            }
+
+                            // 3. Web API fallback
+                            try {
+                                if (screen.orientation && screen.orientation.unlock) {
+                                    screen.orientation.unlock();
+                                }
+                            } catch (e) { }
+                        };
+
+                        dp.on('fullscreen', handleEnterFullscreen);
+                        dp.on('fullscreen_cancel', handleExitFullscreen);
+
+                        // 也监听 web fullscreen 事件
+                        dp.on('webfullscreen', handleEnterFullscreen);
+                        dp.on('webfullscreen_cancel', handleExitFullscreen);
 
                         // ========== 🔧 设置菜单修复 ==========
                         setTimeout(() => {
